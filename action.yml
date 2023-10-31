@@ -1,36 +1,25 @@
 name: "AWS LB Blue/Green Status Action"
 description: "This action determines if the an AWS LB is in a blue or green state"
 inputs:
-  listener_arn:
-    description: "The ARN of the listener"
+  blue_rule_arn:
+    description: "The ARN of the blue rule"
     required: true
-  blue_target_group_arn:
-    description: "The ARN of the blue listener"
+  green_rule_arn:
+    description: "The ARN of the green rule"
     required: true
-  green_target_group_arn:
-    description: "The ARN of the green listener"
-    required: true
-  blue_rule_name:
-    description: "The name of the blue rule"
-    required: false
-    default: "blue"
-  green_rule_name:
-    description: "The name of the green rule"
-    required: false
-    default: "green"
-  switch_target_group:
+  switch_active_rule:
     description: "If true, the action will switch the active and inactive rules"
     required: false
     default: "false"
 outputs:
-  active_target_group: 
-    description: "The ARN of the active target group"
-  inactive_target_group:
-    description: "The ARN of the inactive target group"
-  active_target_group_arn:
-    description: "The ARN of the active target group"
-  inactive_target_group_arn:
-    description: "The ARN of the inactive target group"
+  active_rule:
+    description: "The name of the active rule"
+  inactive_rule:
+    description: "The name of the inactive rule"
+  active_rule_arn:
+    description: "The ARN of the active rule"
+  inactive_rule_arn:
+    description: "The ARN of the inactive rule"
 
 runs:
   using: "node20"

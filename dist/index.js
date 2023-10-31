@@ -52648,93 +52648,55 @@ __nccwpck_require__.a(__webpack_module__, async (__webpack_handle_async_dependen
 
 const client = new _aws_sdk_client_elastic_load_balancing_v2__WEBPACK_IMPORTED_MODULE_1__.ElasticLoadBalancingV2Client();
 
-const listenerArn = _actions_core__WEBPACK_IMPORTED_MODULE_0__.getInput('listener_arn', { required: true });
-const blueTargetGroupArn = _actions_core__WEBPACK_IMPORTED_MODULE_0__.getInput('blue_target_group_arn', { required: true });
-const greenTargetGroupArn = _actions_core__WEBPACK_IMPORTED_MODULE_0__.getInput('green_target_group_arn', { required: true });
-const blueRuleName = _actions_core__WEBPACK_IMPORTED_MODULE_0__.getInput('blue_rule_name', { required: true });
-const greenRuleName = _actions_core__WEBPACK_IMPORTED_MODULE_0__.getInput('green_rule_name', { required: true });
-const switchTargetGroup = _actions_core__WEBPACK_IMPORTED_MODULE_0__.getInput('switch_target_group', { required: true }) === 'true';
+const blueRuleArn = _actions_core__WEBPACK_IMPORTED_MODULE_0__.getInput('blue_rule_arn', { required: true });
+const greenRuleArn = _actions_core__WEBPACK_IMPORTED_MODULE_0__.getInput('green_rule_arn', { required: true });
+const switchActiveRule = _actions_core__WEBPACK_IMPORTED_MODULE_0__.getInput('switch_active_rule', { required: true }) === 'true';
 
-const describeRulesInput = {
-  ListenerArn: listenerArn,
-  PageSize: 100 //LB is limited to 100 rules total
+const describeBlueRuleInput = {
+  RuleArns: [blueRuleArn],
 };
 
-const describeRulesCommand = new _aws_sdk_client_elastic_load_balancing_v2__WEBPACK_IMPORTED_MODULE_1__.DescribeRulesCommand(describeRulesInput);
-const describeRulesResponse = await client.send(describeRulesCommand);
+const describeGreenRuleInput = {
+  RuleArns: [greenRuleArn],
+};
 
-let rules = describeRulesResponse.Rules;
+const describeBlueRuleCommand = new _aws_sdk_client_elastic_load_balancing_v2__WEBPACK_IMPORTED_MODULE_1__.DescribeRulesCommand(describeBlueRuleInput);
+const describeGreenRuleCommand = new _aws_sdk_client_elastic_load_balancing_v2__WEBPACK_IMPORTED_MODULE_1__.DescribeRulesCommand(describeGreenRuleInput);
+const describeBlueRuleResponse = await client.send(describeBlueRuleCommand);
+const describeGreenRuleResponse = await client.send(describeGreenRuleCommand);
 
+const blueRule = {...describeBlueRuleResponse.Rules[0], Name: 'blue'};
+const greenRule = {...describeGreenRuleResponse.Rules[0], Name: 'green'};
 
-// Hydrate tags
-for (const rule of rules) {
-  const describeTagsInput = {
-    ResourceArns: [rule.RuleArn]
-  };
-  
-  const describeTagsCommand = new _aws_sdk_client_elastic_load_balancing_v2__WEBPACK_IMPORTED_MODULE_1__.DescribeTagsCommand(describeTagsInput);
-  const describeTagsResponse = await client.send(describeTagsCommand);
+let activeRule = blueRule.Priority < greenRule.Priority ? blueRule : greenRule;
+let inactiveRule = blueRule.Priority < greenRule.Priority ? greenRule : blueRule;
 
-  rule.Tags = describeTagsResponse.TagDescriptions[0].Tags;
-}
-
-//console.log(JSON.stringify(rules,null, 2));
-
-const blueRule = rules.filter(rule => 
-  rule.Actions[0].TargetGroupArn === blueTargetGroupArn 
-  && rule.Tags.filter(tag => tag.Key === 'Name' && tag.Value === blueRuleName).length > 0
-)[0];
-
-const greenRule = rules.filter(rule =>
-  rule.Actions[0].TargetGroupArn === greenTargetGroupArn
-  && rule.Tags.filter(tag => tag.Key === 'Name' && tag.Value === greenRuleName).length > 0
-)[0];
-
-let activeRule = null;
-let inactiveRule = null;
-
-if (blueRule.Priority < greenRule.Priority) {
-  activeRule = blueRule;
-  inactiveRule = greenRule;
-} else {
-  activeRule = greenRule;
-  inactiveRule = blueRule;
-}
-
-if (switchTargetGroup) {
+if(switchActiveRule) {
   const setRulePrioritiesInput = {
     RulePriorities: [
       {
+        Priority: inactiveRule.Priority,
         RuleArn: activeRule.RuleArn,
-        Priority: inactiveRule.Priority
       },
       {
+        Priority: activeRule.Priority,
         RuleArn: inactiveRule.RuleArn,
-        Priority: activeRule.Priority
-      }
-    ]
-  }
-
-  console.log('Set Rule Priorities Input: ', JSON.stringify(setRulePrioritiesInput));
+      },
+    ],
+  };
 
   const setRulePrioritiesCommand = new _aws_sdk_client_elastic_load_balancing_v2__WEBPACK_IMPORTED_MODULE_1__.SetRulePrioritiesCommand(setRulePrioritiesInput);
-  const setRulePrioritiesResponse = await client.send(setRulePrioritiesCommand);
+  await client.send(setRulePrioritiesCommand);
 
-  console.log('Set Rule Priorities Response: ', JSON.stringify(setRulePrioritiesResponse));
-
-  // Swap active and inactive rules
   const activeTemp = activeRule;
   activeRule = inactiveRule;
   inactiveRule = activeTemp;
 }
 
-console.log(activeRule);
-console.log(inactiveRule);
-
-_actions_core__WEBPACK_IMPORTED_MODULE_0__.setOutput('active_rule_name', activeRule.Tags.filter(tag => tag.Key === 'Name')[0].Value);
-_actions_core__WEBPACK_IMPORTED_MODULE_0__.setOutput('inactive_rule_name', inactiveRule.Tags.filter(tag => tag.Key === 'Name')[0].Value);
-_actions_core__WEBPACK_IMPORTED_MODULE_0__.setOutput('active_target_group_arn', activeRule.Actions[0].TargetGroupArn);
-_actions_core__WEBPACK_IMPORTED_MODULE_0__.setOutput('inactive_target_group_arn', inactiveRule.Actions[0].TargetGroupArn);
+_actions_core__WEBPACK_IMPORTED_MODULE_0__.setOutput('active_rule', activeRule.Name);
+_actions_core__WEBPACK_IMPORTED_MODULE_0__.setOutput('inactive_rule', inactiveRule.Name);
+_actions_core__WEBPACK_IMPORTED_MODULE_0__.setOutput('active_rule_arn', activeRule.RuleArn);
+_actions_core__WEBPACK_IMPORTED_MODULE_0__.setOutput('inactive_rule_arn', inactiveRule.RuleArn);
 
 __webpack_async_result__();
 } catch(e) { __webpack_async_result__(e); } }, 1);
